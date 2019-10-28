@@ -10,14 +10,19 @@ class Mp3player:
     def __init__(self):
         self.win = tk.Tk()
         self.frame1 = tk.Frame(self.win, bg="black")
+        self.label1 = tk.Label(self.win, text="", fg="white", bg="black")
         self.init_struct()
 
     def init_struct(self):
-        label1 = tk.Label(self.win, text="Now Playing: ", fg="white", bg="black")
+        mixer.init(22050, -16, 2, 4096)
         self.win.title("mp3player")
         self.win.resizable(False, False)
         self.win.geometry("500x400")
         self.frame1.place(x=0, y=0, anchor="nw", width=500, height=400)
+        pause_but = Button(self.win, text="pause", command=lambda: [self.pause(), pause_but.place_forget()], bg="grey",
+                           fg="white")
+        pause_but.place(x=230, y=150)
+        self.set_songs()
         self.win.mainloop()
 
     def play_song(self, song):
@@ -25,8 +30,8 @@ class Mp3player:
         # mixer.pre_init(48000, -16, 2, 4096)
         mixer.music.load(full_str)
         mixer.music.play(2)
-        label1 = tk.Label(self.win, text="Now Playing:  " + song, fg="white", bg="black")
-        label1.place(x=135, y=100)
+        self.label1['text'] = "Now Playing:  " + song
+        self.label1.place(x=135, y=100)
 
     def set_songs(self):
         onlyfiles = [f for f in listdir(r'C:\Users\Jinsung\Downloads\downloadbash') if
@@ -42,6 +47,18 @@ class Mp3player:
             buttons[i].place(x=x_coor, y=y_coor)
             y_coor += 55
             i += 1
+
+    def pause(self):
+        mixer.music.pause()
+        resume_but = Button(self.win, text="resume", command=lambda: [self.resume(), resume_but.place_forget()],
+                            bg="grey", fg="white", anchor="w")
+        resume_but.place(x=230, y=150)
+
+    def resume(self):
+        mixer.music.unpause()
+        pause_but = Button(self.win, text="pause", command=lambda: [self.pause(), pause_but.place_forget()], bg="grey",
+                           fg="white", anchor="w")
+        pause_but.place(x=230, y=150)
 
 
 if __name__ == "__main__":
