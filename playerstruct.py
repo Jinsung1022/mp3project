@@ -7,6 +7,8 @@ import os.path
 from tkinter import *
 from tkinter.filedialog import askdirectory
 import tkinter as tk
+import threading
+import time
 
 
 def raise_frame(frame):
@@ -30,8 +32,9 @@ class Mp3player:
         self.set_directory()
         self.song_list = [f for f in listdir(self.directory) if
                           isfile(join(self.directory, f))]
-        self.resume_but = ""
+        self.resume_but = Button()
         self.st = 'p'
+        self.bar = '|'
         self.init_struct()
 
     def set_directory(self):
@@ -107,10 +110,24 @@ class Mp3player:
         mixer.music.load(full_str)
         # mixer.music.play(2)
         mixer.music.play()
+        # Running the loop for the progress
+        thread = threading.Thread(target=self.run, args=())
+        thread.daemon = True
+        thread.start()
+        # Label the song
         self.label1['text'] = "Now Playing:  " + node.get_song()
         self.label1.place(x=270, y=50)
+        # Song progression horizontal line
+        hor_bar = Label(self.frame1, text="_______________________________________", fg="white", bg="black")
+        hor_bar.place(x=270, y=10)
         self.queue()
         # pygame.mixer.music.load(next_string)
+
+    def run(self):
+        pygame.mixer.music.set_pos(0)
+        while True:
+            print(pygame.mixer.music.get_pos())
+            time.sleep(51)
 
     def queue(self):
         pos = pygame.mixer.music.get_pos()
