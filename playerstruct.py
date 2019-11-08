@@ -1,6 +1,5 @@
-from node import Node
-from pygame import mixer
-import pygame
+#from node import Node
+import contextlib
 from os import listdir
 from os.path import isfile, join
 import os.path
@@ -9,10 +8,22 @@ from tkinter.filedialog import askdirectory
 import tkinter as tk
 import threading
 import time
+with contextlib.redirect_stdout(None):
+    from pygame import mixer
+    import pygame
 
 
-def raise_frame(frame):
-    frame.tkraise()
+class Node:
+
+    def __init__(self, song, index):
+        self.song = song
+        self.index = index
+
+    def get_song(self):
+        return self.song
+
+    def get_index(self):
+        return self.index
 
 
 class Mp3player:
@@ -22,7 +33,6 @@ class Mp3player:
     def __init__(self):
         self.win = tk.Tk()
         self.frame1 = tk.Frame(self.win, bg="black")
-        self.menu_frame = tk.Frame(self.win, bg="black")
         self.canvas_frame = Frame(self.frame1)
         self.canvas = Canvas(self.canvas_frame, bg='#FFFFFF', width=600, height=350, scrollregion=(0, 0, 200, 800))
         self.label1 = tk.Label(self.frame1, text="", fg="white", bg="black")
@@ -30,11 +40,13 @@ class Mp3player:
         self.f = ""
         self.directory = ""
         self.set_directory()
+        if self.directory == "":
+            sys.exit(1)
         self.song_list = [f for f in listdir(self.directory) if
                           isfile(join(self.directory, f))]
         self.resume_but = Button()
         self.st = 'p'
-        self.bar = '|'
+        self.hor_scale = Scale()
         self.init_struct()
 
     def set_directory(self):
@@ -42,19 +54,23 @@ class Mp3player:
             self.f = open("dir.txt", 'r')
             self.directory = self.f.readline()
         else:
-            self.directory = askdirectory()
-            with open("dir.txt", 'w') as self.f:
-                self.f.write(self.directory)
+            direct = askdirectory()
+            if direct != '':
+                self.directory = direct
+                with open("dir.txt", 'w') as self.f:
+                    self.f.write(self.directory)
 
     def change_dir(self):
-        self.directory = askdirectory()
+        direct = askdirectory()
         self.f.close()
-        with open("dir.txt", 'w') as self.f:
-            self.f.write(self.directory)
-        self.canvas.delete("all")
-        self.song_list = [f for f in listdir(self.directory) if
-                          isfile(join(self.directory, f))]
-        self.set_songs()
+        if direct != '':
+            self.directory = direct
+            with open("dir.txt", 'w') as self.f:
+                self.f.write(self.directory)
+            self.canvas.delete("all")
+            self.song_list = [f for f in listdir(self.directory) if
+                              isfile(join(self.directory, f))]
+            self.set_songs()
 
     def init_struct(self):
         mixer.init(22050, -16, 2, 4096)
@@ -62,7 +78,6 @@ class Mp3player:
         self.win.resizable(False, False)
         self.win.geometry("700x500")
         self.frame1.place(x=0, y=0, anchor="nw", width=800, height=500)
-        self.menu_frame.place(x=0, y=0, anchor="nw", width=800, height=500)
         self.canvas_frame.place(x=50, y=150, anchor="nw", width=600, height=350)
         # Pause button
         pause_but = Button(self.frame1, text="pause", command=lambda: [self.pause(), pause_but.place_forget()],
@@ -76,17 +91,14 @@ class Mp3player:
         # Rewind button
         re_but = Button(self.frame1, text="Replay", command=lambda: mixer.music.rewind(), bg="grey", fg="white")
         re_but.place(x=600, y=100)
-        list_but = Button(self.menu_frame, text="Songs", command=lambda: raise_frame(self.frame1),
-                          bg="grey", fg="white")
-        list_but.place(x=200, y=200)
-        # Back to menu button
-        menu_but = Button(self.frame1, text="Back to Menu", command=lambda: raise_frame(self.menu_frame),
-                          bg="grey", fg="white")
-        menu_but.place(x=0, y=0)
         # Change directory button
         chdir_but = Button(self.frame1, text="Change Directory", command=lambda: self.change_dir(),
                            bg="grey", fg="white")
         chdir_but.place(x=600, y=0)
+        vol_bar = Scale(self.frame1, from_=100, to=0, orient=VERTICAL,
+                        command=self.change_vol, bg="black", fg="white")
+        vol_bar.set(50)
+        vol_bar.place(x=100, y=30)
         # Scroll bar
         vbar = Scrollbar(self.canvas_frame, orient=VERTICAL)
         vbar.pack(side=RIGHT, fill=Y)
@@ -94,7 +106,6 @@ class Mp3player:
         self.canvas.config(yscrollcommand=vbar.set)
         self.canvas.pack()
         self.set_songs()
-        raise_frame(self.menu_frame)
         self.win.mainloop()
 
     def play_song(self, node):
@@ -118,15 +129,27 @@ class Mp3player:
         self.label1['text'] = "Now Playing:  " + node.get_song()
         self.label1.place(x=270, y=50)
         # Song progression horizontal line
-        hor_bar = Label(self.frame1, text="_______________________________________", fg="white", bg="black")
-        hor_bar.place(x=270, y=10)
+        # hor_bar = Label(self.frame1, text="_______________________________________", fg="white", bg="black")
+        self.hor_scale = Scale(self.frame1, from_=0, to=100, length=300, orient=HORIZONTAL,
+                               command=self.change_pro, bg="black", fg="white")
+        self.hor_scale.place(x=230, y=10)
         self.queue()
         # pygame.mixer.music.load(next_string)
+
+    def change_pro(self, pro):
+        pygame.mixer.music.pause()
+        pygame.mixer.music.set_pos(int(pro))
+        pygame.mixer.music.play(-1, pygame.mixer.music.get_pos()/1000.0)
+        self.hor_scale.set(int(pro))
+
+    def change_vol(self, vol):
+        volume = int(vol)/100
+        pygame.mixer.music.set_volume(volume)
 
     def run(self):
         pygame.mixer.music.set_pos(0)
         while True:
-            print(pygame.mixer.music.get_pos())
+            # print(pygame.mixer.music.get_pos())
             time.sleep(51)
 
     def queue(self):
@@ -139,7 +162,7 @@ class Mp3player:
         self.win.after(1, self.queue)
 
     def set_songs(self):
-        self.canvas['scrollregion'] = (0, 0, 200, (len(self.song_list) - 2) * 77)
+        self.canvas['scrollregion'] = (0, 0, 200, (len(self.song_list) - 2) * 73)
         y_coor = 0
         i = 0
         buttons = []
@@ -152,7 +175,11 @@ class Mp3player:
             i += 1
 
     def next_song(self):
-        node = Node(self.song_list[self.index + 1], self.index + 1)
+        print(self.index + 1, len(self.song_list))
+        if self.index + 1 == len(self.song_list):
+            node = Node(self.song_list[0], 0)
+        else:
+            node = Node(self.song_list[self.index + 1], self.index + 1)
         self.play_song(node)
 
     def prev_song(self):
