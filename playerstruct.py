@@ -162,7 +162,7 @@ class Mp3player:
         self.win.after(1, self.queue)
 
     def set_songs(self):
-        self.canvas['scrollregion'] = (0, 0, 200, (len(self.song_list) - 2) * 73)
+        self.canvas['scrollregion'] = (0, 0, 200, (len(self.song_list)) * 55)
         y_coor = 0
         i = 0
         buttons = []
