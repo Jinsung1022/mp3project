@@ -49,6 +49,9 @@ class Mp3player:
         self.hor_scale = Scale()
         self.init_struct()
 
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1*(event.delta/100)), "units")
+
     def set_directory(self):
         if os.path.exists("dir.txt"):
             self.f = open("dir.txt", 'r')
@@ -105,6 +108,7 @@ class Mp3player:
         vbar.config(command=self.canvas.yview)
         self.canvas.config(yscrollcommand=vbar.set)
         self.canvas.pack()
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
         self.set_songs()
         self.win.mainloop()
 
