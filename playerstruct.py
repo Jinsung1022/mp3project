@@ -1,4 +1,5 @@
 #from node import Node
+from random import randrange
 import contextlib
 from os import listdir
 from os.path import isfile, join
@@ -28,8 +29,6 @@ class Node:
 
 class Mp3player:
 
-    num_played = 0
-
     def __init__(self):
         self.win = tk.Tk()
         self.frame1 = tk.Frame(self.win, bg="black")
@@ -37,6 +36,8 @@ class Mp3player:
         self.canvas = Canvas(self.canvas_frame, bg='#FFFFFF', width=600, height=350, scrollregion=(0, 0, 200, 800))
         self.label1 = tk.Label(self.frame1, text="", fg="white", bg="black")
         self.index = 0
+        self.looping = BooleanVar()
+        self.shuffling = BooleanVar()
         self.f = ""
         self.directory = ""
         self.set_directory()
@@ -45,6 +46,7 @@ class Mp3player:
         self.song_list = [f for f in listdir(self.directory) if
                           isfile(join(self.directory, f))]
         self.resume_but = Button()
+        self.loop_but = Checkbutton()
         self.st = 'p'
         self.hor_scale = Scale()
         self.init_struct()
@@ -83,7 +85,7 @@ class Mp3player:
         self.frame1.place(x=0, y=0, anchor="nw", width=800, height=500)
         self.canvas_frame.place(x=50, y=150, anchor="nw", width=600, height=350)
         # Pause button
-        pause_but = Button(self.frame1, text="pause", command=lambda: [self.pause(), pause_but.place_forget()],
+        pause_but = Button(self.frame1, text="Pause", command=lambda: [self.pause(), pause_but.place_forget()],
                            bg="grey", fg="white")
         pause_but.place(x=320, y=100)
         # Next & Prev button
@@ -92,8 +94,14 @@ class Mp3player:
         prev_but = Button(self.frame1, text="Prev", command=lambda: self.prev_song(), bg="grey", fg="white")
         prev_but.place(x=270, y=100)
         # Rewind button
-        re_but = Button(self.frame1, text="Replay", command=lambda: mixer.music.rewind(), bg="grey", fg="white")
+        re_but = Button(self.frame1, text="Replay", command=lambda: self.rewind(), bg="grey", fg="white")
         re_but.place(x=600, y=100)
+        # Looping button
+        self.loop_but = Checkbutton(self.frame1, text="loop", variable=self.looping, bg="grey", fg="black")
+        self.loop_but.place(x=600, y=70)
+        # Shuffle button
+        shuffle_but = Checkbutton(self.frame1, text="shuffle", variable=self.shuffling, bg="grey", fg="black")
+        shuffle_but.place(x=600, y=40)
         # Change directory button
         chdir_but = Button(self.frame1, text="Change Directory", command=lambda: self.change_dir(),
                            bg="grey", fg="white")
@@ -123,8 +131,7 @@ class Mp3player:
         self.index = node.get_index()
         # mixer.pre_init(48000, -16, 2, 4096)
         mixer.music.load(full_str)
-        # mixer.music.play(2)
-        mixer.music.play()
+        mixer.music.play(0)
         # Running the loop for the progress
         thread = threading.Thread(target=self.run, args=())
         thread.daemon = True
@@ -179,21 +186,38 @@ class Mp3player:
             i += 1
 
     def next_song(self):
-        print(self.index + 1, len(self.song_list))
-        if self.index + 1 == len(self.song_list):
-            node = Node(self.song_list[0], 0)
+        print(self.looping.get())
+        if not self.looping.get():
+            if not self.shuffling.get():
+                if self.index + 1 == len(self.song_list):
+                    node = Node(self.song_list[0], 0)
+                else:
+                    node = Node(self.song_list[self.index + 1], self.index + 1)
+            else:
+                num = randrange(len(self.song_list))
+                node = Node(self.song_list[num], num)
         else:
-            node = Node(self.song_list[self.index + 1], self.index + 1)
+            node = Node(self.song_list[self.index], self.index)
         self.play_song(node)
 
     def prev_song(self):
         node = Node(self.song_list[self.index - 1], self.index - 1)
         self.play_song(node)
 
+    def rewind(self):
+        mixer.music.rewind()
+        node = Node(self.song_list[self.index], self.index)
+        self.play_song(node)
+        self.st = 'p'
+        pause_but = Button(self.win, text="Pause",
+                           command=lambda: [self.pause(), pause_but.place_forget()],
+                           bg="grey", fg="white", anchor="w")
+        pause_but.place(x=320, y=100)
+
     def pause(self):
         mixer.music.pause()
         self.st = 'r'
-        self.resume_but = Button(self.win, text="resume",
+        self.resume_but = Button(self.win, text="Resume",
                                  command=lambda: [self.resume(), self.resume_but.place_forget()],
                                  bg="grey", fg="white", anchor="w")
         self.resume_but.place(x=320, y=100)
