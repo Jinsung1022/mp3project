@@ -1,4 +1,5 @@
 #from node import Node
+from mutagen.mp3 import MP3
 from random import randrange
 import contextlib
 from os import listdir
@@ -35,9 +36,11 @@ class Mp3player:
         self.canvas_frame = Frame(self.frame1)
         self.canvas = Canvas(self.canvas_frame, bg='#FFFFFF', width=600, height=350, scrollregion=(0, 0, 200, 800))
         self.label1 = tk.Label(self.frame1, text="", fg="white", bg="black")
+        self.scale_label = tk.Label(self.frame1, text="", fg="white", bg="black")
         self.index = 0
-        self.looping = BooleanVar()
-        self.shuffling = BooleanVar()
+        self.song_length = 0
+        self.current_time = 0
+        self.status = IntVar()
         self.f = ""
         self.directory = ""
         self.set_directory()
@@ -46,7 +49,7 @@ class Mp3player:
         self.song_list = [f for f in listdir(self.directory) if
                           isfile(join(self.directory, f))]
         self.resume_but = Button()
-        self.loop_but = Checkbutton()
+        self.loop_but = Radiobutton()
         self.st = 'p'
         self.hor_scale = Scale()
         self.init_struct()
@@ -96,12 +99,18 @@ class Mp3player:
         # Rewind button
         re_but = Button(self.frame1, text="Replay", command=lambda: self.rewind(), bg="grey", fg="white")
         re_but.place(x=600, y=100)
-        # Looping button
-        self.loop_but = Checkbutton(self.frame1, text="loop", variable=self.looping, bg="grey", fg="black")
-        self.loop_but.place(x=600, y=70)
+        # Standard button
+        standard_but = Radiobutton(self.frame1, text="in order", variable=self.status,
+                                   value=0, bg="grey", fg="black")
+        standard_but.place(x=500, y=40)
         # Shuffle button
-        shuffle_but = Checkbutton(self.frame1, text="shuffle", variable=self.shuffling, bg="grey", fg="black")
-        shuffle_but.place(x=600, y=40)
+        shuffle_but = Radiobutton(self.frame1, text="shuffle", variable=self.status,
+                                  value=2, bg="grey", fg="black")
+        shuffle_but.place(x=500, y=70)
+        # Looping button
+        self.loop_but = Radiobutton(self.frame1, text="loop", variable=self.status,
+                                    value=1, bg="grey", fg="black")
+        self.loop_but.place(x=500, y=100)
         # Change directory button
         chdir_but = Button(self.frame1, text="Change Directory", command=lambda: self.change_dir(),
                            bg="grey", fg="white")
@@ -109,7 +118,7 @@ class Mp3player:
         vol_bar = Scale(self.frame1, from_=100, to=0, orient=VERTICAL,
                         command=self.change_vol, bg="black", fg="white")
         vol_bar.set(50)
-        vol_bar.place(x=100, y=30)
+        vol_bar.place(x=80, y=30)
         # Scroll bar
         vbar = Scrollbar(self.canvas_frame, orient=VERTICAL)
         vbar.pack(side=RIGHT, fill=Y)
@@ -127,41 +136,55 @@ class Mp3player:
                                bg="grey",
                                fg="white", anchor="w")
             pause_but.place(x=320, y=100)
+        self.scale_label["text"] = "0:00"
         full_str = self.directory + "\\" + node.get_song()
         self.index = node.get_index()
         # mixer.pre_init(48000, -16, 2, 4096)
         mixer.music.load(full_str)
-        mixer.music.play(0)
+        song = MP3(full_str)
+        self.song_length = song.info.length
+        mixer.music.play()
+        pygame.mixer.music.set_pos(0)
         # Running the loop for the progress
         thread = threading.Thread(target=self.run, args=())
         thread.daemon = True
         thread.start()
         # Label the song
         self.label1['text'] = "Now Playing:  " + node.get_song()
-        self.label1.place(x=270, y=50)
+        self.label1.place(x=180, y=60)
         # Song progression horizontal line
         # hor_bar = Label(self.frame1, text="_______________________________________", fg="white", bg="black")
-        self.hor_scale = Scale(self.frame1, from_=0, to=100, length=300, orient=HORIZONTAL,
-                               command=self.change_pro, bg="black", fg="white")
-        self.hor_scale.place(x=230, y=10)
+        #self.song_length = float(self.song_length)
+        self.hor_scale = Scale(self.frame1, from_=0, to=self.song_length,
+                               resolution=0.01, length=300, orient=HORIZONTAL,
+                               command=self.change_pro, sliderlength=15,
+                               showvalue=False, bg="black", fg="white")
+        self.hor_scale.place(x=180, y=10)
+        self.scale_label.place(x=180, y=40)
         self.queue()
         # pygame.mixer.music.load(next_string)
 
-    def change_pro(self, pro):
+    def change_pro(self, value):
+        value = float(value)
+        self.current_time = value
+        minutes = value / 60
+        seconds = value % 60
+        self.scale_label.configure(text="%2.2d:%2.2d" % (minutes, seconds))
         pygame.mixer.music.pause()
-        pygame.mixer.music.set_pos(int(pro))
-        pygame.mixer.music.play(-1, pygame.mixer.music.get_pos()/1000.0)
-        self.hor_scale.set(int(pro))
+        pygame.mixer.music.play()
+        pygame.mixer.music.set_pos(value)
+        self.hor_scale.set(float(value))
 
     def change_vol(self, vol):
         volume = int(vol)/100
         pygame.mixer.music.set_volume(volume)
 
     def run(self):
-        pygame.mixer.music.set_pos(0)
+        hi = 0
         while True:
-            # print(pygame.mixer.music.get_pos())
-            time.sleep(51)
+            print(pygame.mixer.music.get_pos()/1000)
+            current = pygame.mixer.music.get_pos()
+
 
     def queue(self):
         pos = pygame.mixer.music.get_pos()
@@ -186,18 +209,18 @@ class Mp3player:
             i += 1
 
     def next_song(self):
-        print(self.looping.get())
-        if not self.looping.get():
-            if not self.shuffling.get():
-                if self.index + 1 == len(self.song_list):
-                    node = Node(self.song_list[0], 0)
-                else:
-                    node = Node(self.song_list[self.index + 1], self.index + 1)
+        print(self.status.get())
+        if self.status.get() == 0:
+            if self.index + 1 == len(self.song_list):
+                node = Node(self.song_list[0], 0)
             else:
-                num = randrange(len(self.song_list))
-                node = Node(self.song_list[num], num)
-        else:
+                node = Node(self.song_list[self.index + 1], self.index + 1)
+        elif self.status.get() == 1:
             node = Node(self.song_list[self.index], self.index)
+        else:
+            num = randrange(len(self.song_list))
+            node = Node(self.song_list[num], num)
+
         self.play_song(node)
 
     def prev_song(self):
