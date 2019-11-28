@@ -37,11 +37,14 @@ class Mp3player:
         self.canvas = Canvas(self.canvas_frame, bg='#FFFFFF', width=600, height=350, scrollregion=(0, 0, 200, 800))
         self.label1 = tk.Label(self.frame1, text="", fg="white", bg="black")
         self.scale_label = tk.Label(self.frame1, text="", fg="white", bg="black")
+        self.length_label = tk.Label(self.frame1, text="", fg="white", bg="black")
+        self.scale_var = DoubleVar()
         self.index = 0
         self.song_length = 0
-        self.current_time = 0
+        self.value = 0
         self.status = IntVar()
         self.f = ""
+        self.first = True
         self.directory = ""
         self.set_directory()
         if self.directory == "":
@@ -51,6 +54,7 @@ class Mp3player:
         self.resume_but = Button()
         self.loop_but = Radiobutton()
         self.st = 'p'
+        self.track_on = False
         self.hor_scale = Scale()
         self.init_struct()
 
@@ -129,7 +133,18 @@ class Mp3player:
         self.set_songs()
         self.win.mainloop()
 
+    def track_play(self):
+        if self.st == 'p':
+            self.value += 1
+            minutes = self.value / 60
+            seconds = self.value % 60
+            self.scale_label.configure(text="%2.2d:%2.2d" % (minutes, seconds))
+            self.scale_var.set(self.value)
+        self.win.after(1000, lambda: self.track_play())
+
     def play_song(self, node):
+        self.value = 0
+        self.scale_var.set(0)
         if self.st == 'r':
             self.resume_but.place_forget()
             pause_but = Button(self.win, text="pause", command=lambda: [self.pause(), pause_but.place_forget()],
@@ -143,48 +158,57 @@ class Mp3player:
         mixer.music.load(full_str)
         song = MP3(full_str)
         self.song_length = song.info.length
+        self.length_label.configure(text="%2.2d:%2.2d" % (self.song_length/60, self.song_length % 60))
         mixer.music.play()
         pygame.mixer.music.set_pos(0)
+        if not self.track_on:
+            self.track_play()
+            self.track_on = True
+        '''
         # Running the loop for the progress
         thread = threading.Thread(target=self.run, args=())
         thread.daemon = True
         thread.start()
+        '''
         # Label the song
         self.label1['text'] = "Now Playing:  " + node.get_song()
         self.label1.place(x=180, y=60)
         # Song progression horizontal line
         # hor_bar = Label(self.frame1, text="_______________________________________", fg="white", bg="black")
         #self.song_length = float(self.song_length)
-        self.hor_scale = Scale(self.frame1, from_=0, to=self.song_length,
-                               resolution=0.01, length=300, orient=HORIZONTAL,
-                               command=self.change_pro, sliderlength=15,
-                               showvalue=False, bg="black", fg="white")
-        self.hor_scale.place(x=180, y=10)
-        self.scale_label.place(x=180, y=40)
+
+        if self.first:
+            self.hor_scale = Scale(self.frame1, from_=0, to=self.song_length, variable=self.scale_var,
+                                   resolution=0.01, length=300, orient=HORIZONTAL,
+                                   command=self.change_pro, sliderlength=15,
+                                   showvalue=False, bg="black", fg="white")
+            self.hor_scale.place(x=180, y=10)
+            self.scale_label.place(x=180, y=35)
+            self.length_label.place(x=455, y=35)
+            self.first = False
+        else:
+            self.hor_scale["to"] = self.song_length
+
         self.queue()
         # pygame.mixer.music.load(next_string)
 
     def change_pro(self, value):
         value = float(value)
-        self.current_time = value
+        self.value = value
+        # self.scale_var.set(self.value)
         minutes = value / 60
         seconds = value % 60
         self.scale_label.configure(text="%2.2d:%2.2d" % (minutes, seconds))
         pygame.mixer.music.pause()
         pygame.mixer.music.play()
+        if self.st == 'r':
+            pygame.mixer.music.pause()
         pygame.mixer.music.set_pos(value)
-        self.hor_scale.set(float(value))
+        # self.hor_scale.set(value)
 
     def change_vol(self, vol):
         volume = int(vol)/100
         pygame.mixer.music.set_volume(volume)
-
-    def run(self):
-        hi = 0
-        while True:
-            print(pygame.mixer.music.get_pos()/1000)
-            current = pygame.mixer.music.get_pos()
-
 
     def queue(self):
         pos = pygame.mixer.music.get_pos()
@@ -203,13 +227,12 @@ class Mp3player:
         for songs in self.song_list:
             buttons.append(
                 tk.Button(self.canvas, text=songs, command=lambda c=Node(songs, i): self.play_song(c),
-                          bg="black", fg="white", height=3, width=85))
+                          bg="gray11", fg="white", height=3, width=85))
             self.canvas.create_window(-1, y_coor, anchor=NW, window=buttons[i])
             y_coor += 55
             i += 1
 
     def next_song(self):
-        print(self.status.get())
         if self.status.get() == 0:
             if self.index + 1 == len(self.song_list):
                 node = Node(self.song_list[0], 0)
@@ -220,7 +243,6 @@ class Mp3player:
         else:
             num = randrange(len(self.song_list))
             node = Node(self.song_list[num], num)
-
         self.play_song(node)
 
     def prev_song(self):
